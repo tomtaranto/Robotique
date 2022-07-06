@@ -119,6 +119,42 @@ class Controler(object):
         return a
 
 
+def modelisation(theta1, theta2):
+    R = 0.0215
+    L = 0.1
+    V = R/2 * (theta1+theta2)
+    w = (R/L) * (theta1 - theta2)
+    vx = v * cos(w)
+    
+    
+
+def read_coder():
+    buf = bytearray(1)
+    buf[0] = 0x04
+    microbit.i2c.write(0x10, buf)
+    etatByteL = (microbit.i2c.read(0x10, 2)) 
+    L = int.from_bytes(etatByteL, "big")
+    buf[0] = 0x06
+    microbit.i2c.write(0x10, buf)
+    etatByteR = (microbit.i2c.read(0x10, 2)) 
+    R = int.from_bytes(etatByteR, "big")
+    return L, R
+    
+previous_l ,previous_r = read_coder()
+R = 0.0215
+
+def get_distance_parcourue():
+    global previous_l ,previous_r
+    l,r = read_coder()
+    diff_tours_l = l - previous_l
+    distance_l = (diff_tours_l /80) * 2*3.1415*R
+    previous_l ,previous_r = l,r
+    return distance_l
+
+
+
+
+
 import music
 def sing():
     tune = [
@@ -145,6 +181,8 @@ rb = Robot(0x10)
 welcome()
 
 from microbit import *
+all_d = 0
+
 
 while True:
     # sing()
@@ -158,14 +196,20 @@ while True:
         rb.setVitesse((u+15))
         print(u+15, "recule")
         rb.recule()
+        d = get_distance_parcourue()
+        all_d -= d
     elif u <0: 
         rb.setVitesse(-u +15)
         print(-u+15, "avance")   
         rb.avance()
+        d = get_distance_parcourue()
+        all_d += d
+        if all_d > 1.0:
+            rb.stop()
     else:
         rb.setVitesse(0)
         rb.stop()
     print(u)   
     print("----")
-    sleep(10)
+    # sleep(300)
     # sleep(300)
