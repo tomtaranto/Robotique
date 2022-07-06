@@ -118,15 +118,36 @@ class Controler(object):
         self.previous_error = error
         return a
 
-    
+
+import music
+def sing():
+    tune = [
+"A:2", "C:2", "D:2", "D:2", "D","E", "F:2", "F:2",
+"F","G:2",  "E:2", "E:2", "D:2","C:2", "C:2", "D:2",
+"A:2", "C:2", "D:2", "D:2", "D","E:2", "F:2", "F:2",
+"F","G:3",  "E:2", "E:2", "D","C:2", "D",
+"A:2", "C:2", "D:2", "D:3",  "D","F", "G:2", "G",
+]
+    music.play(tune)
+
+# sing()
+
+def welcome():
+    #microbit.display.scroll("WELCOME ! ")
+    microbit.display.show(microbit.Image.SKULL)
+    microbit.i2c.write(0x10, bytearray([0x0B, 1]))
+    microbit.i2c.write(0x10, bytearray([0x0C, 1]))
 
 controler = Controler()
         
 rb = Robot(0x10)
 
+welcome()
+
 from microbit import *
 
 while True:
+    # sing()
     x =  rb.distance()
     print(rb.distance())
     u = controler.control(x)
@@ -148,8 +169,3 @@ while True:
     print("----")
     sleep(10)
     # sleep(300)
-
-while True:
-    rb.setVitesse(15)
-    rb.recule()
- 
