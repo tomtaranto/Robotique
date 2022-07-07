@@ -106,19 +106,26 @@ previous_error = 0
 
 class Controler(object):
     def __init__(self):
-        self.P = 100
+        self.P = 10
         self.I = 0.1
         self.D = 0.01
         self.previous_error = 10000
-        self.dt = 1 / 100
-        self.target = 1
+        self.dt = 1 / 10
+        self.target = 100
+        self.P_error = 1000
+        self.I_error = 1000
+        self.D_error = 1
+        self.previous_a = 100000
 
     def control(self, x):
-        a = 0
         error = x - self.target
-        a += self.P * error
-        a += self.I * error * self.dt
+        self.P_error = self.P * error
+        self.I_error += self.I * error * self.dt
+        self.D_error += self.D * (self.previous_error - error) * self.dt
+        a = self.P_error + self.I_error + self.D_error
         # a+= self.D * (self.previous_error - error) / self.dt
+        # res = a - self.previous_a
+        # self.previous_a = a
         self.previous_error = error
         return a
 
@@ -152,7 +159,7 @@ def get_distance_parcourue():
     global previous_l, previous_r
     l, r = read_coder()
     diff_tours_l = l - previous_l
-    distance_l = (diff_tours_l / 80) * 2 * 3.1415 * R
+    distance_l = (diff_tours_l / 80) * 2 * 3.1415 * R * 100
     previous_l, previous_r = l, r
     return distance_l
 
@@ -180,6 +187,13 @@ def welcome():
     microbit.i2c.write(0x10, bytearray([0x0C, 1]))
 
 
+def goodbye():
+    # microbit.display.scroll("WELCOME ! ")
+    microbit.display.show(microbit.Image.HEART)
+    microbit.i2c.write(0x10, bytearray([0x0B, 1]))
+    microbit.i2c.write(0x10, bytearray([0x0C, 1]))
+
+
 controler = Controler()
 
 rb = Robot(0x10)
@@ -187,9 +201,10 @@ rb = Robot(0x10)
 welcome()
 
 from microbit import *
+import sys
 
 all_d = 0
-
+threshold = 1
 while True:
     # sing()
     # x =  rb.distance()
@@ -197,27 +212,29 @@ while True:
     print("all d", str(all_d))
     u = controler.control(all_d)
     print("premier u", str(u))
-    u = int(u)
-    d = get_distance_parcourue()
-    if u < 0:
-        all_d += d
-    else:
-        all_d -= d
     print("vrai U", str(u))
     if u > 100: u = 100
     if u < -100: u = -100
-    if u > 0:
-        rb.setVitesse((u + 100))
-        print(u + 100, "recule")
+    if u > threshold:
+        u = int(u)
+        rb.setVitesse((u + 20))
+        print(u + 20, "recule")
         rb.recule()
-    elif u < 0:
-        rb.setVitesse(-u)
-        print(-u + 100, "avance")
+        d = get_distance_parcourue()
+        all_d -= d
+    elif u < -threshold:
+        u = int(u)
+        rb.setVitesse(-u + 20)
+        print(-u + 20, "avance")
         rb.avance()
+        d = get_distance_parcourue()
+        all_d += d
     else:
         rb.setVitesse(0)
         rb.stop()
     print(u)
     print("----")
     # sleep(300)
-    # sleep(300)
+
+sleep(3000)
+goodbye()
