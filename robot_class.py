@@ -7,6 +7,8 @@ from machine import time_pulse_us
 
 import math
 
+from radioclass import *
+
 
 class Robot:
     def __init__(self):
@@ -20,8 +22,10 @@ class Robot:
 
         self.R = 0.0215
         self.L = 0.1
-
+        self.Ierror = 0
         self.prevE, self.iE = 0, 0
+        self.radio = radio_receiver()
+        self.ball = [0, 0]
 
     def init(self):
         i2c.init()
@@ -140,13 +144,18 @@ class Robot:
         return 0, 0
 
     def update(self, dt):
+        rad = self.radio.update()
+        self.x = rad[0]
+        self.y = rad[1]
+        self.t = rad[2]
+        self.ball = rad[6:]
         G, D = self.codeurs()
         dG = G / 80 * math.pi
         dD = D / 80 * math.pi
-        self.t += self.R / self.L * (dD - dG)
+        # self.t += self.R / self.L * (dD - dG)
         self.v = self.R / 2 * (dD + dG) / dt
-        self.x = self.x + self.v * math.cos(self.t) * dt
-        self.y = self.y + self.v * math.sin(self.t) * dt
+        # self.x = self.x + self.v * math.cos(self.t) * dt
+        # self.y = self.y + self.v * math.sin(self.t) * dt
 
     def move(self, v, w):
         stop_limit = 30
@@ -180,13 +189,36 @@ class Robot:
         return (dirG + dirD) > 0
 
     def control(self, v, t, dt):
-        et = t - self.t
+        # et = (t - self.t)
+        et = self.get_angle(v, t, dt)
         self.iE += et * dt
-        P = 400
-        D = 1
+        P = 50
+        D = 20
         I = 0.01
         pid = P * et + D * (et - self.prevE) / dt  # +I*self.iE
         self.prevE = et
+        print("erreur angle : ", pid)
+        P = 5
+        I = 0.7
+        e = self.get_distance(v, t, dt)
+        self.Ierror += I * e * dt
+        pid_v = P * e + self.Ierror
+        print("erreur distance : ", pid_v)
+        if e < 0.05:
+            pid_v = 0
+            pid = 0
 
-        return self.move(v, pid)
+        return self.move(pid_v, pid)
+
+    def get_distance(self, v, t, dt):
+        x = v * math.cos(t)
+        y = v * math.sin(t)
+        d = math.sqrt(math.pow(x - self.x, 2) + math.pow(y - self.y, 2))
+        return d
+
+    def get_angle(self, v, t, dt):
+        x = v * math.cos(t)
+        y = v * math.sin(t)
+        angle = math.atan2(y - self.y, x - self.x)
+        return angle
 
