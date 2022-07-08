@@ -54,23 +54,60 @@ motor2 = Motor(R, L, B, Kt, J, Kb, dt)
 consigne = array([[pi],[pi]])
 
 state = 0
+prev_e0 = 0
+prev_e1 = 0
+
+prev_t0 = 0
+prev_t1 = 0
+
+
 def controller(x):
     global state
+
+    global prev_e0
+    global prev_e1
+
+    global prev_t0
+    global prev_t1
+
     a = 12
     b = 12
-    
+
     ## INSERER ICI LE CONTROL PID
-    
+    t0 = x[0, 0]
+    t1 = x[1, 0]
+
+    # P
+    P = 5
+    a = P * (consigne[0, 0] - t0)
+    P2 = 5
+    b = P2 * (consigne[1, 0] - t1)
+
+    # Intégrale
+    I1 = 1
+    a += I1 * (consigne[0, 0] - t0) * dt
+    I2 = 1
+    b += I2 * (consigne[1, 0] - t1) * dt
+
+    # Derivée
+    D1 = 0.9
+    a += D1 * ((consigne[0, 0] - t0) - prev_e0) / dt
+    D2 = 0.9
+    b += D2 * ((consigne[1, 0] - t1) - prev_e1) / dt
+
     if abs(a) > 12:
-        a = sign(a)*12
+        a = sign(a) * 12
     if abs(b) > 12:
-        b = sign(b)*12
-        
-    if ((consigne[0,0] - x[0,0])/pi*180 < 2) & (state == 0):
+        b = sign(b) * 12
+
+    if ((consigne[0, 0] - x[0, 0]) / pi * 180 < 2) & (state == 0):
         state = 1
         print(datetime.now() - timer)
-    
-    return array([[a],[b]])
+
+    prev_e0 = (consigne[0, 0] - t0)
+    prev_e1 = (consigne[1, 0] - t1)
+
+    return array([[a], [b]])
 
 def f(u):
     dθ1=motor1.update(u[0,0])
