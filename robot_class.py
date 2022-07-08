@@ -26,6 +26,7 @@ class Robot:
         self.prevE, self.iE = 0, 0
         self.radio = radio_receiver()
         self.ball = [0, 0]
+        self.iE_angle = 0
 
     def init(self):
         i2c.init()
@@ -146,17 +147,17 @@ class Robot:
 
     def update(self, dt):
         rad = self.radio.update()
-        self.x = rad[0]
-        self.y = rad[1]
-        self.t = rad[2]
+        # self.x = rad[0]
+        # self.y = rad[1]
+        # self.t = rad[2]
         self.ball = rad[6:]
         G, D = self.codeurs()
         dG = G / 80 * math.pi
         dD = D / 80 * math.pi
-        # self.t += self.R / self.L * (dD - dG)
+        self.t += self.R / self.L * (dD - dG)
         self.v = self.R / 2 * (dD + dG) / dt
-        # self.x = self.x + self.v * math.cos(self.t) * dt
-        # self.y = self.y + self.v * math.sin(self.t) * dt
+        self.x = self.x + self.v * math.cos(self.t) * dt
+        self.y = self.y + self.v * math.sin(self.t) * dt
 
     def move(self, v, w):
         stop_limit = 30
@@ -193,14 +194,14 @@ class Robot:
         # et = (t - self.t)
         et = self.get_angle(v, t, dt)
         self.iE += et * dt
-        P = 50
-        D = 20
-        I = 0.01
-        pid = P * et + D * (et - self.prevE) / dt  # +I*self.iE
+        P = 80
+        D = 10
+        I = 1
+        pid = P * et +I*self.iE #+ D * (et - self.prevE) / dt
         self.prevE = et
         print("erreur angle : ", pid)
-        P = 5
-        I = 0.7
+        P = 10
+        I = 0.1
         e = self.get_distance(v, t, dt)
         self.Ierror += I * e * dt
         pid_v = P * e + self.Ierror
@@ -220,8 +221,16 @@ class Robot:
     def get_angle(self, v, t, dt):
         x = v * math.cos(t)
         y = v * math.sin(t)
-        angle = math.atan2(y - self.y, x - self.x)
+        angle = math.atan2(y - self.y, x - self.x) - self.t
         return angle
+
+    def control_angle(self,v,t,dt):
+        et = (t - self.t)
+        self.iE_angle += et * dt
+        P = 80
+        I = 1
+        pid = P * et +I*self.iE_angle
+        return self.move(0, pid)
 
     def welcome(self):
         # microbit.display.scroll("WELCOME ! ")
