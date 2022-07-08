@@ -29,6 +29,7 @@ class Robot:
 
     def init(self):
         i2c.init()
+        self.welcome()
         sleep(500)
 
     def moteur(self, dirG, vitG, dirD, vitD):
@@ -221,4 +222,10 @@ class Robot:
         y = v * math.sin(t)
         angle = math.atan2(y - self.y, x - self.x)
         return angle
+
+    def welcome(self):
+        # microbit.display.scroll("WELCOME ! ")
+        display.show(Image.SKULL)
+        i2c.write(0x10, bytearray([0x0B, 1]))
+        i2c.write(0x10, bytearray([0x0C, 1]))
 

@@ -5,6 +5,7 @@ import music
 
 microbit.i2c.init()
 
+PI = 3.1415
 
 class Robot():
     def __init__(self, addr=0x10):
@@ -100,18 +101,27 @@ class Robot():
         microbit.i2c.write(self.addr, bytearray([0, 2, vit]))
         microbit.i2c.write(self.addr, bytearray([2, 1, vit]))
 
+    def rotate_and_run(self, v1, v2):
+        vit1 = abs(v1) * 255 // 100
+        sens1 = 1 if v1 >=0 else 2
+        vit2 = abs(v2) * 255 // 100
+        sens2 = 1 if v2 >=0 else 2
+        microbit.i2c.write(self.addr, bytearray([0, sens1, vit1]))
+        microbit.i2c.write(self.addr, bytearray([2, sens2, vit2]))
+
+
 
 previous_error = 0
 
 
 class Controler(object):
-    def __init__(self):
-        self.P = 10
-        self.I = 0.1
-        self.D = 0.01
+    def __init__(self, P,I,D, target):
+        self.P = P
+        self.I = I
+        self.D = D
         self.previous_error = 10000
         self.dt = 1 / 10
-        self.target = 100
+        self.target = target
         self.P_error = 1000
         self.I_error = 1000
         self.D_error = 1
@@ -123,11 +133,46 @@ class Controler(object):
         self.I_error += self.I * error * self.dt
         self.D_error += self.D * (self.previous_error - error) * self.dt
         a = self.P_error + self.I_error + self.D_error
-        # a+= self.D * (self.previous_error - error) / self.dt
-        # res = a - self.previous_a
-        # self.previous_a = a
         self.previous_error = error
         return a
+
+
+class Controler_double(object):
+    def __init__(self, P,I,D, target1, target2):
+        self.P = P
+        self.I = I
+        self.D = D
+        self.previous_error = 10000
+        self.dt = 1 / 10
+        self.target1 = target1
+        self.target2 = target2
+        self.P_error_v = 1000
+        self.I_error_v = 1000
+        self.D_error_v = 1
+        self.previous_error_v = 1
+        self.previous_a_v = 100000
+        self.P_error_theta = 1000
+        self.I_error_theta = 1000
+        self.D_error_theta = 1
+        self.previous_error_theta = 1
+        self.previous_a_theta = 100000
+
+    def control(self, x):
+        v, theta = x
+        error_v = v - self.target1
+        error_theta = theta - self.target2
+        self.P_error_v = self.P * error_v
+        self.I_error_v += self.I * error_v * self.dt
+        self.D_error_v += self.D * (self.previous_error_v - error_v) * self.dt
+        a = self.P_error_v + self.I_error_v + self.D_error_v
+
+        self.P_error_theta = self.P * error_theta
+        self.I_error_theta += self.I * error_theta * self.dt
+        self.D_error_theta += self.D * (self.previous_error_theta - error_theta) * self.dt
+        b = self.P_error_theta + self.I_error_theta + self.D_error_theta
+        self.previous_error_v = error_v
+        self.previous_error_theta = error_theta
+        return a,b
 
 
 def modelisation(theta1, theta2):
@@ -153,15 +198,29 @@ def read_coder():
 
 previous_l, previous_r = read_coder()
 R = 0.0215
+L = 0.1000
+dt = 1/10
 
 
 def get_distance_parcourue():
     global previous_l, previous_r
     l, r = read_coder()
     diff_tours_l = l - previous_l
+    diff_tours_r = r - previous_r
     distance_l = (diff_tours_l / 80) * 2 * 3.1415 * R * 100
+    distance_r = (diff_tours_r / 80) * 2 * 3.1415 * R * 100
     previous_l, previous_r = l, r
-    return distance_l
+    return distance_l, distance_r
+
+
+def get_vitesse(d_l, d_r):
+    return d_l/dt, d_r / dt
+
+def convert(v,theta, theta_p):
+    v_r = v/R - R* ((theta-theta_p)/dt)* L/2
+    v_l = v/R + R* ((theta-theta_p)/dt)* L/2
+    return v_l, v_r
+
 
 
 import music
@@ -194,7 +253,9 @@ def goodbye():
     microbit.i2c.write(0x10, bytearray([0x0C, 1]))
 
 
-controler = Controler()
+distance_controler = Controler(10,0.1,0.01, 100)
+angle_controler = Controler(10,0.1,0.01,0)
+# vitesse_angle_controler = Controler_double(1,0.1,0.01)
 
 rb = Robot(0x10)
 
@@ -202,15 +263,31 @@ welcome()
 
 from microbit import *
 import sys
-
+# compass.calibrate()
 all_d = 0
+all_theta = 0
+all_v = 0
+all_angles = 0
 threshold = 1
+previous_angle = compass.heading()
+while True:
+    theta = angle_controler.control(all_angles)
+
+
+
+
+
+
+
 while True:
     # sing()
     # x =  rb.distance()
     # print(rb.distance())
     print("all d", str(all_d))
-    u = controler.control(all_d)
+    current_angle = compass.heading() #* PI / 180
+    print("current angle : ", current_angle)
+    u = distance_controler.control(all_d)
+    theta1, theta2 = convert(u, current_angle, previous_angle)
     print("premier u", str(u))
     print("vrai U", str(u))
     if u > 100: u = 100
@@ -220,15 +297,15 @@ while True:
         rb.setVitesse((u + 20))
         print(u + 20, "recule")
         rb.recule()
-        d = get_distance_parcourue()
-        all_d -= d
+        d_l, d_r = get_distance_parcourue()
+        all_d -= (d_l+d_r)/2
     elif u < -threshold:
         u = int(u)
         rb.setVitesse(-u + 20)
         print(-u + 20, "avance")
         rb.avance()
-        d = get_distance_parcourue()
-        all_d += d
+        d_l, d_r = get_distance_parcourue()
+        all_d += (d_l+d_r)/2
     else:
         rb.setVitesse(0)
         rb.stop()
